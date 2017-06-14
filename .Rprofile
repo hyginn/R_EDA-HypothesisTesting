@@ -2,6 +2,8 @@ init <- function() {
     source(".init.R")
 }
 
+source("typeInfo.R")
+
 cat("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n")
 cat("    =================")
 cat("\n\n")

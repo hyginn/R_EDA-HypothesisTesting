@@ -2,17 +2,18 @@
 #
 # Purpose:  Introduction to hypothesis testing for biological data.
 #
-# Version: 1.0
+# Version: 1.1
 #
-# Date:    2016  06  01
+# Date:    2017  06  01
 # Author:  Boris Steipe (boris.steipe@utoronto.ca)
 #
-# V 1.0    First code
+# V 1.1    2017 updates
+# V 1.0    First code 2016
 #
 # TODO:
 #
 #
-# == HOW TO WORK WITH THIS FILE ======================================
+# == HOW TO WORK WITH THIS FILE ================================================
 #
 #  Go through this script line by line to read and understand the
 #  code. Execute code by typing <cmd><enter>. When nothing is
@@ -30,12 +31,72 @@
 #  Google for an answer, or ask me. Don't continue if you don't
 #  understand what's going on. That's not how it works ...
 #
-#  This is YOUR file. Write your notes in here and add as many
-#  comments as you need to understand what's going on here when you
-#  come back to it in a year. That's the right way: keep code, data
-#  and notes all in one place.
+#  Once you have typed and executed the function init(), you will find a file
+#  called myScript.R in the project directory.
+#
+#  Open it, you can place all of your code-experiments and notes into that
+#  file. This will be your "Lab Journal" for this session.
 #
 # ====================================================================
+
+# ==================================================
+# (Preparation: Recreate the expression data)
+# ==================================================
+#
+
+library(Biobase)
+library(GEOquery)
+library(limma)
+
+# Load series and platform data
+load("../R_EDA-Clustering/GSE26922.RData")
+# Make proper column names to match toptable
+fvarLabels(gset) <- make.names(fvarLabels(gset))
+# Group names for all samples
+sml <- c("G0","G0","G0","G1","G1","G1",
+         "G2","G2","G2","G3","G3","G3",
+         "G4","G4","G4","G5","G5","G5");
+
+# log2 transform
+ex <- exprs(gset)
+qx <- as.numeric(quantile(ex, c(0., 0.25, 0.5, 0.75, 0.99, 1.0), na.rm=T))
+LogC <- (qx[5] > 100) ||
+    (qx[6]-qx[1] > 50 && qx[2] > 0) ||
+    (qx[2] > 0 && qx[2] < 1 && qx[4] > 1 && qx[4] < 2)
+if (LogC) {
+    ex[which(ex <= 0)] <- NaN
+    exprs(gset) <- log2(ex)
+}
+
+# Proceed with analysis
+fl <- as.factor(sml)
+gset$description <- fl
+design <- model.matrix(~ description + 0, gset)
+colnames(design) <- levels(fl)
+fit <- lmFit(gset, design)
+cont.matrix <- makeContrasts(G5-G0, G1-G0, G2-G1,
+                             G3-G2, G4-G3, G5-G4,
+                             levels=design)
+fit2 <- contrasts.fit(fit, cont.matrix)
+fit2 <- eBayes(fit2, 0.01)
+tT <- topTable(fit2, adjust="fdr", sort.by="B", number=250)
+
+# load NCBI platform annotation
+gpl <- annotation(gset)
+platf <- getGEO(gpl, AnnotGPL=TRUE)
+ncbifd <- data.frame(attr(dataTable(platf), "table"))
+
+# replace original platform annotation
+tT <- tT[setdiff(colnames(tT), setdiff(fvarLabels(gset), "ID"))]
+tT <- merge(tT, ncbifd, by="ID")
+tT <- tT[order(tT$P.Value), ]  # restore correct order
+
+tT <- subset(tT, select=c("ID","adj.P.Val","P.Value",
+                          "F","Gene.symbol","Gene.title"))
+
+# ========= Checkpoint ...
+
+
 
 
 # ==================================================
